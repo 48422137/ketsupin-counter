@@ -1,0 +1,556 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+  <meta name="theme-color" content="#111" />
+  <link rel="manifest" href="./manifest.webmanifest" />
+  <title>欠品カウンター（裏→売場）</title>
+  <style>
+    :root { --bg:#0b0b0c; --card:#141416; --text:#f3f3f4; --muted:#a9a9b2; --accent:#4da3ff; --ok:#42f59e; --danger:#ff5a6a; }
+    * { box-sizing: border-box; }
+    body { margin:0; font-family: -apple-system, system-ui, "Hiragino Sans", "Noto Sans JP", sans-serif; background:var(--bg); color:var(--text); }
+    header { position: sticky; top:0; background: linear-gradient(180deg, rgba(11,11,12,0.98), rgba(11,11,12,0.86)); backdrop-filter: blur(8px); padding: 14px 14px 10px; border-bottom: 1px solid rgba(255,255,255,0.06); z-index: 3;}
+    h1 { margin:0; font-size: 16px; letter-spacing: .2px; }
+    .sub { margin-top:8px; color:var(--muted); font-size: 12px; display:flex; gap:10px; flex-wrap: wrap; align-items:center;}
+    .pill { padding:4px 8px; border:1px solid rgba(255,255,255,0.12); border-radius:999px; }
+    main { padding: 12px 14px 140px; max-width: 820px; margin:0 auto; }
+    input, button, select { font: inherit; }
+    .row { display:flex; gap:10px; flex-wrap: wrap; }
+    .search { width: 100%; padding: 12px 12px; border-radius: 12px; border:1px solid rgba(255,255,255,0.10); background: #0f0f12; color:var(--text); }
+    .card { background:var(--card); border:1px solid rgba(255,255,255,0.08); border-radius: 16px; padding: 12px; margin-top: 10px; }
+    .tabs { display:flex; gap:8px; margin-top:10px; }
+    .tab { flex:1; border:none; border-radius: 14px; padding: 10px 12px; background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.10); color: var(--text); }
+    .tab.active { background: rgba(77,163,255,0.18); border: 1px solid rgba(77,163,255,0.28); }
+    .small { font-size: 12px; color: var(--muted); }
+    .item { display:grid; grid-template-columns: 1fr auto; gap: 10px; align-items: center; }
+    .name { font-size: 16px; font-weight: 700; }
+    .meta { color:var(--muted); font-size: 12px; margin-top: 2px; display:flex; gap:8px; flex-wrap: wrap; }
+    .controls { display:flex; gap: 8px; align-items:center; flex-wrap: wrap; justify-content: flex-end; }
+    .count { min-width: 44px; text-align:center; font-variant-numeric: tabular-nums; font-size: 18px; font-weight: 800; }
+    .btn { border:none; border-radius: 14px; padding: 10px 12px; background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.10); color: var(--text); }
+    .btn:active { transform: scale(0.98); }
+    .btnPlus { background: rgba(77,163,255,0.22); border: 1px solid rgba(77,163,255,0.35); }
+    .btnMinus { background: rgba(255,90,106,0.18); border: 1px solid rgba(255,90,106,0.32); }
+    .status { border-radius: 999px; padding: 8px 10px; border: 1px solid rgba(255,255,255,0.12); background: rgba(255,255,255,0.04); color: var(--text); font-size: 12px; }
+    .status[data-s="unknown"] { border-color: rgba(255,255,255,0.12); color: var(--muted); }
+    .status[data-s="have"] { border-color: rgba(66,245,158,0.35); color: #bfffe3; }
+    .status[data-s="none"] { border-color: rgba(255,90,106,0.35); color: #ffd0d6; }
+    .qty { width: 84px; text-align: center; padding: 8px 10px; border-radius: 12px; border:1px solid rgba(255,255,255,0.12); background:#0f0f12; color:var(--text); font-variant-numeric: tabular-nums; }
+    .hr { height:1px; background: rgba(255,255,255,0.08); margin: 10px 0; }
+    .footerBar { position: fixed; left:0; right:0; bottom:0; background: rgba(11,11,12,0.92); backdrop-filter: blur(10px); border-top: 1px solid rgba(255,255,255,0.08); padding: 10px 14px; z-index: 4;}
+    .footerInner { max-width: 820px; margin: 0 auto; display:flex; gap:10px; flex-wrap: wrap; }
+    .btnWide { flex:1; min-width: 160px; background: rgba(77,163,255,0.18); border: 1px solid rgba(77,163,255,0.28); }
+    .btnGhost { background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.10); }
+    .btnDanger { background: rgba(255,90,106,0.18); border: 1px solid rgba(255,90,106,0.30); }
+    .formRow { display:flex; gap:10px; flex-wrap: wrap; align-items:center; }
+    .text { flex:1; min-width: 200px; padding: 10px 12px; border-radius: 12px; border:1px solid rgba(255,255,255,0.10); background: #0f0f12; color:var(--text); }
+    .panelTitle { font-weight: 700; margin-bottom: 6px; }
+    .kpi { display:flex; gap:10px; flex-wrap: wrap; margin-top:8px; }
+    .kpi .pill { background: rgba(255,255,255,0.04); }
+  </style>
+</head>
+<body>
+<header>
+  <h1>欠品カウンター（裏→売場）</h1>
+  <div class="sub">
+    <span class="pill" id="todayPill"></span>
+    <span class="pill" id="modePill"></span>
+    <span class="pill" id="sumPill"></span>
+    <span class="pill" id="needCheckPill"></span>
+  </div>
+  <div class="tabs">
+    <button class="tab" id="tabBack">① 裏確認</button>
+    <button class="tab" id="tabFloor">② 売場（裏にあるだけ）</button>
+  </div>
+</header>
+
+<main>
+  <input id="q" class="search" placeholder="検索（例：カルピス / コーラ）" inputmode="search" />
+
+  <div class="card">
+    <div class="formRow">
+      <input id="newName" class="text" placeholder="品目を追加（例：カルピス 500ml）" />
+      <button class="btn btnWide" id="addBtn">追加</button>
+    </div>
+    <div class="small" style="margin-top:8px;">
+      使い方：①裏で「ある/ない/不明」と（可能なら）数量を入れる → ②売場では「裏にある品目だけ」欠品をカウント → 下に「補充すべき数」が出る
+    </div>
+  </div>
+
+  <div id="summary" class="card" style="display:none;"></div>
+
+  <div id="list"></div>
+</main>
+
+<div class="footerBar">
+  <div class="footerInner">
+    <button class="btn btnWide" id="exportBtn">CSV書き出し</button>
+    <button class="btn btnGhost" id="copyBtn">結果をコピー</button>
+    <button class="btn btnDanger" id="resetBtn">今日をリセット</button>
+  </div>
+</div>
+
+<script>
+(() => {
+  const STORAGE_KEY = "kitano_ketsupin_v2";
+  const $ = (id) => document.getElementById(id);
+
+  const deepCopy = (obj) => JSON.parse(JSON.stringify(obj));
+
+  const todayStr = () => {
+    const d = new Date();
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, "0");
+    const day = String(d.getDate()).padStart(2, "0");
+    return `${y}-${m}-${day}`;
+  };
+
+  const defaultCatalog = [
+    { name: "カルピス" },
+    { name: "コーラ" },
+    { name: "お茶" },
+    { name: "水" }
+  ];
+
+  const load = () => {
+    try {
+      const raw = localStorage.getItem(STORAGE_KEY);
+      if (!raw) return null;
+      return JSON.parse(raw);
+    } catch {
+      return null;
+    }
+  };
+
+  const save = (state) => localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+
+  const initState = () => {
+    const existing = load();
+    if (existing && existing.catalog && existing.sessions && existing.ui) return existing;
+    return {
+      catalog: deepCopy(defaultCatalog),
+      sessions: {},
+      ui: { mode: "back" } // back | floor
+    };
+  };
+
+  let state = initState();
+  const t = todayStr();
+
+  const ensureToday = () => {
+    if (!state.sessions[t]) {
+      state.sessions[t] = {
+        items: state.catalog.map(p => ({
+          name: p.name,
+          backroomStatus: "unknown", // unknown | have | none
+          backroomQty: "",           // optional (string, can be blank)
+          missing: 0                 // count on sales floor
+        }))
+      };
+    }
+  };
+
+  const getSession = () => state.sessions[t];
+
+  const getItemIndexByName = (arr, name) => arr.findIndex(x => x.name === name);
+
+  const normalizeSessionToCatalog = () => {
+    ensureToday();
+    const s = getSession();
+
+    // add new catalog items into today's session
+    state.catalog.forEach(p => {
+      if (!s.items.some(x => x.name === p.name)) {
+        s.items.push({ name: p.name, backroomStatus: "unknown", backroomQty: "", missing: 0 });
+      }
+    });
+
+    // remove session items not in catalog
+    s.items = s.items.filter(x => state.catalog.some(p => p.name === x.name));
+  };
+
+  normalizeSessionToCatalog();
+  save(state);
+
+  const statusCycle = (s) => (s === "unknown" ? "have" : (s === "have" ? "none" : "unknown"));
+  const statusLabel = (s) => (s === "unknown" ? "裏：不明" : (s === "have" ? "裏：ある" : "裏：ない"));
+
+  const parseQty = (v) => {
+    // accept "", "0", "2", "2箱" etc -> pull leading number
+    if (v === null || v === undefined) return null;
+    const s = String(v).trim();
+    if (!s) return null;
+    const m = s.match(/-?\d+/);
+    if (!m) return null;
+    const n = Number(m[0]);
+    return Number.isFinite(n) ? n : null;
+  };
+
+  const compute = () => {
+    const s = getSession();
+    let totalMissing = 0;
+    let needBackCheck = 0;
+    let floorCandidates = 0;
+
+    const rows = s.items.map(it => {
+      const miss = Number(it.missing || 0);
+      totalMissing += miss;
+
+      if (it.backroomStatus === "unknown") needBackCheck += 1;
+      if (it.backroomStatus === "have") floorCandidates += 1;
+
+      const qty = parseQty(it.backroomQty);
+      const canPick = (it.backroomStatus === "have")
+        ? (qty === null ? miss : Math.min(miss, Math.max(0, qty)))
+        : 0;
+
+      const shortage = (it.backroomStatus === "have" && qty !== null) ? Math.max(0, miss - Math.max(0, qty)) : 0;
+
+      return { ...it, qtyNum: qty, pick: canPick, shortage };
+    });
+
+    const pickTotal = rows.reduce((a,r)=> a + (r.pick||0), 0);
+
+    return { rows, totalMissing, needBackCheck, floorCandidates, pickTotal };
+  };
+
+  const setMode = (mode) => {
+    state.ui.mode = mode;
+    save(state);
+    render();
+  };
+
+  const renderSummary = () => {
+    const { rows, totalMissing, needBackCheck, pickTotal } = compute();
+    const mode = state.ui.mode;
+
+    const sum = $("summary");
+    sum.style.display = "block";
+
+    if (mode === "back") {
+      const have = rows.filter(r => r.backroomStatus === "have").length;
+      const none = rows.filter(r => r.backroomStatus === "none").length;
+      sum.innerHTML = `
+        <div class="panelTitle">今日の状態（裏確認）</div>
+        <div class="kpi">
+          <span class="pill">裏：ある ${have}</span>
+          <span class="pill">裏：ない ${none}</span>
+          <span class="pill">裏：不明 ${needBackCheck}</span>
+        </div>
+        <div class="small" style="margin-top:8px;">裏が「ある」になった品目だけが、②売場で欠品を数える価値がある。</div>
+      `;
+    } else {
+      // floor
+      const toCount = rows.filter(r => r.backroomStatus === "have").length;
+      const counted = rows.filter(r => r.backroomStatus === "have" && (r.missing||0) > 0).length;
+
+      const topPick = rows
+        .filter(r => r.backroomStatus === "have" && (r.missing||0) > 0)
+        .sort((a,b)=> (b.pick||0) - (a.pick||0))
+        .slice(0, 6);
+
+      const list = topPick.map(r => {
+        const qtyPart = r.qtyNum === null ? "数量？" : `裏${r.qtyNum}`;
+        const shortPart = (r.shortage||0) > 0 ? ` / 未充足${r.shortage}` : "";
+        return `<div class="small">・${r.name} 欠品${r.missing} → 補充${r.pick}（${qtyPart}${shortPart}）</div>`;
+      }).join("");
+
+      sum.innerHTML = `
+        <div class="panelTitle">今日の補充（売場）</div>
+        <div class="kpi">
+          <span class="pill">欠品合計 ${totalMissing}</span>
+          <span class="pill">補充できる合計 ${pickTotal}</span>
+          <span class="pill">対象品目（裏あり） ${toCount}</span>
+          <span class="pill">欠品入力済 ${counted}</span>
+        </div>
+        ${list ? `<div class="hr"></div>${list}` : `<div class="small" style="margin-top:8px;">まだ欠品が入力されていない（または欠品0）</div>`}
+        <div class="small" style="margin-top:8px;">※裏数量が不明なら「欠品数＝補充数」として暫定計算。必要なら数量を入れると精度UP。</div>
+      `;
+    }
+  };
+
+  const render = () => {
+    normalizeSessionToCatalog();
+    const mode = state.ui.mode;
+    $("todayPill").textContent = `今日：${t}`;
+    $("modePill").textContent = mode === "back" ? "モード：裏確認" : "モード：売場";
+    $("tabBack").classList.toggle("active", mode === "back");
+    $("tabFloor").classList.toggle("active", mode === "floor");
+
+    const { rows, totalMissing, needBackCheck } = compute();
+    $("sumPill").textContent = `欠品合計：${totalMissing}`;
+    $("needCheckPill").textContent = `裏不明：${needBackCheck}`;
+
+    const q = $("q").value.trim().toLowerCase();
+
+    let shown = rows;
+
+    if (mode === "floor") {
+      shown = shown.filter(r => r.backroomStatus === "have");
+    }
+
+    if (q) shown = shown.filter(r => r.name.toLowerCase().includes(q));
+
+    const root = $("list");
+    root.innerHTML = "";
+
+    shown.forEach((r) => {
+      const card = document.createElement("div");
+      card.className = "card";
+
+      const row = document.createElement("div");
+      row.className = "item";
+
+      const left = document.createElement("div");
+      const name = document.createElement("div");
+      name.className = "name";
+      name.textContent = r.name;
+
+      const meta = document.createElement("div");
+      meta.className = "meta";
+
+      if (mode === "back") {
+        const m1 = document.createElement("span");
+        m1.textContent = "まず裏を確定";
+        meta.appendChild(m1);
+      } else {
+        const m1 = document.createElement("span");
+        m1.textContent = (r.missing||0) > 0 ? `欠品入力済` : `欠品0（仮）`;
+        meta.appendChild(m1);
+
+        const m2 = document.createElement("span");
+        m2.textContent = `補充：${r.pick}`;
+        meta.appendChild(m2);
+
+        if (r.qtyNum !== null) {
+          const m3 = document.createElement("span");
+          m3.textContent = `裏：${r.qtyNum}`;
+          meta.appendChild(m3);
+          if ((r.shortage||0) > 0) {
+            const m4 = document.createElement("span");
+            m4.textContent = `未充足：${r.shortage}`;
+            meta.appendChild(m4);
+          }
+        } else {
+          const m3 = document.createElement("span");
+          m3.textContent = "裏数量：未入力";
+          meta.appendChild(m3);
+        }
+      }
+
+      left.appendChild(name);
+      left.appendChild(meta);
+
+      const right = document.createElement("div");
+      right.className = "controls";
+
+      // status button (both modes)
+      const st = document.createElement("button");
+      st.className = "status";
+      st.dataset.s = r.backroomStatus || "unknown";
+      st.textContent = statusLabel(r.backroomStatus || "unknown");
+      st.onclick = () => {
+        const s = getSession();
+        const idx = getItemIndexByName(s.items, r.name);
+        s.items[idx].backroomStatus = statusCycle(s.items[idx].backroomStatus || "unknown");
+        // if set to "none", missing is meaningless -> set to 0 to prevent clutter
+        if (s.items[idx].backroomStatus === "none") s.items[idx].missing = 0;
+        save(state);
+        render();
+      };
+
+      // qty input (both modes, but optional)
+      const qty = document.createElement("input");
+      qty.className = "qty";
+      qty.inputMode = "numeric";
+      qty.placeholder = "裏数量";
+      qty.value = r.backroomQty || "";
+      qty.onchange = () => {
+        const s = getSession();
+        const idx = getItemIndexByName(s.items, r.name);
+        s.items[idx].backroomQty = qty.value;
+        save(state);
+        render();
+      };
+
+      if (mode === "back") {
+        right.appendChild(st);
+        right.appendChild(qty);
+      } else {
+        // floor mode: missing counter
+        const minus = document.createElement("button");
+        minus.className = "btn btnMinus";
+        minus.textContent = "−";
+        minus.onclick = () => {
+          const s = getSession();
+          const idx = getItemIndexByName(s.items, r.name);
+          s.items[idx].missing = Math.max(0, Number(s.items[idx].missing||0) - 1);
+          save(state);
+          render();
+        };
+
+        const count = document.createElement("div");
+        count.className = "count";
+        count.textContent = String(r.missing || 0);
+
+        const plus = document.createElement("button");
+        plus.className = "btn btnPlus";
+        plus.textContent = "＋";
+        plus.onclick = () => {
+          const s = getSession();
+          const idx = getItemIndexByName(s.items, r.name);
+          s.items[idx].missing = Number(s.items[idx].missing||0) + 1;
+          save(state);
+          render();
+        };
+
+        right.appendChild(minus);
+        right.appendChild(count);
+        right.appendChild(plus);
+        right.appendChild(st);
+        right.appendChild(qty);
+      }
+
+      row.appendChild(left);
+      row.appendChild(right);
+      card.appendChild(row);
+
+      // Delete from catalog
+      const hr = document.createElement("div");
+      hr.className = "hr";
+      card.appendChild(hr);
+
+      const del = document.createElement("button");
+      del.className = "btn btnGhost";
+      del.textContent = "この品目をカタログから削除（今後出ない）";
+      del.onclick = () => {
+        const targetName = r.name;
+        state.catalog = state.catalog.filter(x => x.name !== targetName);
+        Object.keys(state.sessions).forEach(d => {
+          state.sessions[d].items = state.sessions[d].items.filter(x => x.name !== targetName);
+        });
+        save(state);
+        render();
+      };
+
+      card.appendChild(del);
+      root.appendChild(card);
+    });
+
+    renderSummary();
+  };
+
+  $("tabBack").onclick = () => setMode("back");
+  $("tabFloor").onclick = () => setMode("floor");
+
+  $("addBtn").onclick = () => {
+    const name = $("newName").value.trim();
+    if (!name) return;
+    if (!state.catalog.some(p => p.name === name)) {
+      state.catalog.push({ name });
+      ensureToday();
+      getSession().items.push({ name, backroomStatus:"unknown", backroomQty:"", missing:0 });
+      save(state);
+    }
+    $("newName").value = "";
+    render();
+  };
+
+  $("exportBtn").onclick = () => {
+    const { rows } = compute();
+    const header = ["date","item","backroom_status","backroom_qty","missing","pick","shortage"];
+    const lines = [header.join(",")];
+
+    rows.forEach(r => {
+      const vals = [
+        t,
+        r.name,
+        r.backroomStatus || "unknown",
+        (r.backroomQty ?? ""),
+        String(r.missing || 0),
+        String(r.pick || 0),
+        String(r.shortage || 0)
+      ].map(v => `"${String(v).replaceAll('"','""')}"`);
+      lines.push(vals.join(","));
+    });
+
+    const csv = lines.join("\n");
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `ketsupin_${t}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  };
+
+  $("copyBtn").onclick = async () => {
+    const { rows, pickTotal } = compute();
+
+    // 共有しやすい2部構成：①補充ピック ②裏なし・未充足
+    const pickLines = rows
+      .filter(r => r.backroomStatus === "have" && (r.missing||0) > 0)
+      .sort((a,b)=> (b.pick||0) - (a.pick||0))
+      .map(r => {
+        const qtyPart = r.qtyNum === null ? "裏数量?" : `裏${r.qtyNum}`;
+        const shortPart = (r.shortage||0) > 0 ? ` / 未充足${r.shortage}` : "";
+        return `${r.name} 欠品${r.missing} → 補充${r.pick}（${qtyPart}${shortPart}）`;
+      });
+
+    const noneLines = rows
+      .filter(r => r.backroomStatus === "none" && (r.missing||0) > 0)
+      .map(r => `${r.name} 欠品${r.missing}（裏なし）`);
+
+    const unknownLines = rows
+      .filter(r => r.backroomStatus === "unknown" && (r.missing||0) > 0)
+      .map(r => `${r.name} 欠品${r.missing}（裏不明）`);
+
+    const parts = [];
+    parts.push(`【${t}】補充ピック（合計${pickTotal}）`);
+    parts.push(pickLines.length ? pickLines.join("\n") : "（なし）");
+
+    if (unknownLines.length) {
+      parts.push("\n【要・裏確認】");
+      parts.push(unknownLines.join("\n"));
+    }
+    if (noneLines.length) {
+      parts.push("\n【裏なし】");
+      parts.push(noneLines.join("\n"));
+    }
+
+    const text = parts.join("\n");
+
+    try {
+      await navigator.clipboard.writeText(text);
+      alert("コピーしました");
+    } catch {
+      prompt("コピーできなかったので手動コピーしてください", text);
+    }
+  };
+
+  $("resetBtn").onclick = () => {
+    if (!confirm("今日の入力（裏/売場）を全部リセットします。OK？")) return;
+    ensureToday();
+    getSession().items.forEach(it => {
+      it.backroomStatus = "unknown";
+      it.backroomQty = "";
+      it.missing = 0;
+    });
+    save(state);
+    render();
+  };
+
+  $("q").addEventListener("input", render);
+
+  if ("serviceWorker" in navigator) {
+    navigator.serviceWorker.register("./sw.js").catch(()=>{});
+  }
+
+  render();
+})();
+</script>
+</body>
+</html>

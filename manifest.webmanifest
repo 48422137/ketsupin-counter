@@ -1,0 +1,9 @@
+{
+  "name": "欠品カウンター（裏→売場）",
+  "short_name": "欠品",
+  "start_url": "./index.html",
+  "display": "standalone",
+  "background_color": "#0b0b0c",
+  "theme_color": "#111111",
+  "icons": []
+}
